@@ -1,5 +1,3 @@
-# WSL-specific session variables
-# Overrides nixos-conf/home-manager/environment.nix (not imported from there)
 _: {
   home.sessionVariables = {
     EDITOR = "hx";
