@@ -52,5 +52,12 @@ eth0.me
 *sextop1*
 *nangcuc*
 
+# YouTube
+*.youtube.com
+*.youtube-nocookie.com
+*.youtubei.googleapis.com
+*.youtube.googleapis.com
+youtu.be
+
 # Time-based rules
 # *.* @go-home
