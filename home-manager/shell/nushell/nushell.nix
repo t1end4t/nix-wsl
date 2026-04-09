@@ -1,6 +1,6 @@
 { nushell-defaultConfig, ... }:
 let
-  extraConfig = builtins.readFile ./configExtra.nu;
+  extraConfig = builtins.replaceStrings [ "\r" ] [ "" ] (builtins.readFile ./configExtra.nu);
   ROOT = builtins.toString ./.;
 in
 {
@@ -11,6 +11,6 @@ in
     extraConfig = ''
       ${extraConfig}
     '';
-    extraEnv = builtins.readFile ./envExtra.nu;
+    extraEnv = builtins.replaceStrings [ "\r" ] [ "" ] (builtins.readFile ./envExtra.nu);
   };
 }

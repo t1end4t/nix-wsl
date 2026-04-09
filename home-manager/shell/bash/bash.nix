@@ -1,6 +1,6 @@
 {
   programs.bash = {
     enable = true;
-    bashrcExtra = builtins.readFile ./bashrc;
+    bashrcExtra = builtins.replaceStrings [ "\r" ] [ "" ] (builtins.readFile ./bashrc);
   };
 }

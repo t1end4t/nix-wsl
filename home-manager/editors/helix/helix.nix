@@ -1,8 +1,9 @@
 { pkgs, ... }:
 let
   ROOT = builtins.toString ./.;
-  settings_toml = builtins.readFile "${ROOT}/config.toml";
-  languages_toml = builtins.readFile "${ROOT}/languages.toml";
+  stripCR = s: builtins.replaceStrings [ "\r" ] [ "" ] s;
+  settings_toml = stripCR (builtins.readFile "${ROOT}/config.toml");
+  languages_toml = stripCR (builtins.readFile "${ROOT}/languages.toml");
 in
 {
   programs.helix = {
