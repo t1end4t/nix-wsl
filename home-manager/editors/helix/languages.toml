@@ -1,0 +1,71 @@
+#################################
+## Configuration for other lsp ##
+#################################
+
+[language-server.harper]
+command = "harper-ls"
+args = ["--stdio"]
+
+[language-server.clangd]
+command = "clangd"
+args = ["--enable-config"]
+
+#################################
+## Configuration for languages ##
+#################################
+#source: https://github.com/helix-editor/helix/blob/master/languages.toml
+
+[[language]]
+name = "bash"
+indent = { tab-width = 4, unit = "    " }
+formatter = { command = 'shfmt', args = ["-i", "4"] }
+auto-format = true
+
+[[language]]
+name = "toml"
+formatter = { command = "taplo", args = ["format", "-"] }
+auto-format = true
+
+[[language]]
+name = "json"
+formatter = { command = 'deno', args = ["fmt", "-", "--ext", "json"] }
+auto-format = true
+
+[[language]]
+name = "yaml"
+formatter = { command = "prettier", args = [".yaml"] }
+auto-format = true
+
+[[language]]
+name = "markdown"
+language-servers = ["markdown-oxide", "harper"]
+# formatter = { command = 'deno', args = [
+#   "fmt",
+#   "-",
+#   "--ext",
+#   "md",
+#   "--line-width",
+#   "110",
+# ] }
+# auto-format = true
+
+[[language]]
+name = "nix"
+language-servers = ["nil"]
+formatter = { command = "nixfmt" }
+auto-format = true
+
+#######################################
+## Configuration for main languages ###
+#######################################
+
+[[language]]
+name = "python"
+language-servers = ["pyright", "ruff", "harper"]
+formatter = { command = "ruff", args = ["format", "-", "--line-length", "80"] }
+auto-format = true
+
+[[language]]
+name = "rust"
+auto-format = true
+language-servers = ["rust-analyzer", "harper"]

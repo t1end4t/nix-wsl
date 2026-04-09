@@ -42,9 +42,9 @@
       system = "x86_64-linux";
       outputs = self;
 
-      # Mirror nixos-conf overlay structure so base.nix can reference outputs.overlays.*
+      # Exposed so home-manager/base.nix can reference outputs.overlays.*
       overlays = {
-        additions = _final: _prev: { }; # no custom packages
+        additions = _final: _prev: { };
         modifications = _final: _prev: { };
         unstable-packages = final: _prev: {
           unstable = import inputs.nixpkgs-unstable {
