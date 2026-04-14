@@ -1,11 +1,11 @@
 {
   imports = [
     ./base.nix
+    ./ai-tools.nix
     ./environment.nix
     ./editors
     ./shell
     ./tools
-    ./ai-tools/ai-tools.nix
     ./gui/zellij/zellij.nix
     ./gui/catppuccin.nix
   ];
