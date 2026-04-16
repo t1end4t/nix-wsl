@@ -12,7 +12,7 @@ source ~/.local/share/atuin/init.nu
 $env.PATH = (
   $env.PATH
   | split row (char esep)
-  | append [~/.npm-global/bin ~/.local/bin ~/.bun/bin]
+  | append [~/.npm-global/bin ~/.local/bin ~/.bun/bin ~/.opencode/bin]
   | uniq
 )
 

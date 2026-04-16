@@ -26,6 +26,10 @@ in
     # uvx --from git+https://github.com/oraios/serena serena
     python313
     uv
+
+    # for sandbox
+    bubblewrap
+    socat
   ];
 
   # remember login
