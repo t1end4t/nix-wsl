@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 
 # --- 1. Download latest release ---
 Write-Host ""
-Write-Host "[1/5] Fetching latest dnscrypt-proxy release from GitHub..."
+Write-Host "[1/6] Fetching latest dnscrypt-proxy release from GitHub..."
 $release = Invoke-RestMethod "https://api.github.com/repos/DNSCrypt/dnscrypt-proxy/releases/latest"
 $asset   = $release.assets | Where-Object { $_.name -match "win64.*\.zip$" } | Select-Object -First 1
 
@@ -37,7 +37,7 @@ Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
 
 # --- 2. Extract ---
 Write-Host ""
-Write-Host "[2/5] Extracting..."
+Write-Host "[2/6] Extracting..."
 $extractDir = "$env:TEMP\dnscrypt-proxy-extract"
 if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
 Expand-Archive -Path $zipPath -DestinationPath $extractDir
@@ -52,7 +52,7 @@ if ($contentRoot) {
 
 # --- 3. Install binary ---
 Write-Host ""
-Write-Host "[3/5] Installing to $INSTALL_DIR..."
+Write-Host "[3/6] Installing to $INSTALL_DIR..."
 New-Item -ItemType Directory -Force -Path $INSTALL_DIR | Out-Null
 Copy-Item -Path "$contentRoot\*" -Destination $INSTALL_DIR -Recurse -Force
 
@@ -70,7 +70,7 @@ foreach ($file in $configFiles) {
 
 # --- 5. Register & start the service ---
 Write-Host ""
-Write-Host "[4/5] Installing Windows service..."
+Write-Host "[4/6] Installing Windows service..."
 Push-Location $INSTALL_DIR
 try {
     & ".\dnscrypt-proxy.exe" -service install
@@ -81,7 +81,7 @@ try {
 
 # --- 6. Point DNS to localhost ---
 Write-Host ""
-Write-Host "[5/5] Setting DNS servers to 127.0.0.1 / ::1 on active adapters..."
+Write-Host "[5/6] Setting DNS servers to 127.0.0.1 / ::1 on active adapters..."
 $adapters = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' }
 foreach ($adapter in $adapters) {
     Write-Host "  $($adapter.Name)"
@@ -89,10 +89,21 @@ foreach ($adapter in $adapters) {
 }
 
 Write-Host ""
-Write-Host "Done! dnscrypt-proxy is running as a Windows service."
+Write-Host "dnscrypt-proxy is running as a Windows service."
 Write-Host "  Config : $INSTALL_DIR\dnscrypt-proxy.toml"
+
+# --- 7. Apply Steven Black hosts blocklist ---
 Write-Host ""
-Write-Host "  Next step: run update-hosts.ps1 (as admin) to apply Steven Black's blocklist."
+Write-Host "[6/6] Applying Steven Black hosts blocklist..."
+$updateHosts = Join-Path $SCRIPT_DIR "update-hosts.ps1"
+if (Test-Path $updateHosts) {
+    & $updateHosts
+} else {
+    Write-Warning "update-hosts.ps1 not found in $SCRIPT_DIR -- skipping. Run it manually."
+}
+
+Write-Host ""
+Write-Host "Done!"
 Write-Host ""
 Write-Host "  To uninstall later:"
 Write-Host ("    cd '" + $INSTALL_DIR + "'")

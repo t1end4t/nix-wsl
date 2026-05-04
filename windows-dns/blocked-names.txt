@@ -60,4 +60,4 @@ eth0.me
 youtu.be
 
 # Time-based rules
-# *.* @go-home
+*.* @go-home

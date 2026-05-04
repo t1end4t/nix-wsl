@@ -20,39 +20,39 @@ cloaking_rules = 'C:\Program Files\dnscrypt-proxy\cloaking-rules.txt'
 ########## Sources ##########
 
 [sources.public-resolvers]
-  urls = [
-    'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
-    'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md'
-  ]
-  cache_file = 'C:\Program Files\dnscrypt-proxy\public-resolvers.md'
-  minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+urls = [
+  'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
+  'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md',
+]
+cache_file = 'C:\Program Files\dnscrypt-proxy\public-resolvers.md'
+minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
 
 
 ########## Filtering ##########
 
 [blocked_names]
-  blocked_names_file = 'C:\Program Files\dnscrypt-proxy\blocked-names.txt'
+blocked_names_file = 'C:\Program Files\dnscrypt-proxy\blocked-names.txt'
 
 [allowed_names]
-  allowed_names_file = 'C:\Program Files\dnscrypt-proxy\allowed-names.txt'
+allowed_names_file = 'C:\Program Files\dnscrypt-proxy\allowed-names.txt'
 
 
 ########## Schedules ##########
 
 [schedules.go-home]
-  mon = [{after = '18:30', before = '6:00'}]
-  tue = [{after = '18:30', before = '6:00'}]
-  wed = [{after = '18:30', before = '6:00'}]
-  thu = [{after = '18:30', before = '6:00'}]
-  fri = [{after = '18:30', before = '6:00'}]
-  sat = [{after = '18:30', before = '6:00'}]
-  sun = [{after = '18:30', before = '6:00'}]
+mon = [{ after = '17:30', before = '6:00' }]
+tue = [{ after = '17:30', before = '6:00' }]
+wed = [{ after = '17:30', before = '6:00' }]
+thu = [{ after = '17:30', before = '6:00' }]
+fri = [{ after = '17:30', before = '6:00' }]
+sat = [{ after = '17:30', before = '6:00' }]
+sun = [{ after = '17:30', before = '6:00' }]
 
 [schedules.not-social-networks]
-  mon = [{after = '6:00', before = '16:00'}]
-  tue = [{after = '6:00', before = '16:00'}]
-  wed = [{after = '6:00', before = '16:00'}]
-  thu = [{after = '6:00', before = '16:00'}]
-  fri = [{after = '6:00', before = '16:00'}]
-  sat = [{after = '6:00', before = '16:00'}]
-  sun = [{after = '6:00', before = '16:00'}]
+mon = [{ after = '6:00', before = '16:00' }]
+tue = [{ after = '6:00', before = '16:00' }]
+wed = [{ after = '6:00', before = '16:00' }]
+thu = [{ after = '6:00', before = '16:00' }]
+fri = [{ after = '6:00', before = '16:00' }]
+sat = [{ after = '6:00', before = '16:00' }]
+sun = [{ after = '6:00', before = '16:00' }]
