@@ -1,4 +1,3 @@
-
 ###########################
 #        Blocklist        #
 ###########################
@@ -15,35 +14,51 @@
 ## ads[0-9]*     | matches "ads" followed by one or more digits
 ## ads*.example* | *, ? and [] can be used anywhere, but prefixes/suffixes are faster
 
+###########################
+# Ads / Tracking
+###########################
+
 ad.*
 ads.*
 banner.*
 banners.*
 creatives.*
 oas.*
-oascentral.*        # inline comments are allowed after a pound sign
+oascentral.*
 stats.*
 tag.*
 telemetry.*
 tracker.*
+
+###########################
+# Local / Network
+###########################
+
 *.local
 eth0.me
 *.workgroup
 
+###########################
+# Prevent Apple Private Relay
+###########################
 
-## Prevent usage of Apple private relay, that bypasses DNS
+mask.apple-dns.net
+mask.icloud.com
+mask-api.icloud.com
+doh.dns.apple.com
 
-# mask.apple-dns.net
-# mask.icloud.com
-# mask-api.icloud.com
-# doh.dns.apple.com
+###########################
+# Manga / Anime / Novels
+###########################
 
-####### My own config #######
 *manga*
 *anime*
 *truyen*
 
+###########################
 # NSFW
+###########################
+
 *sex*
 *porn*
 *rule34*
@@ -52,12 +67,36 @@ eth0.me
 *sextop1*
 *nangcuc*
 
+###########################
 # YouTube
-*.youtube.com
-*.youtube-nocookie.com
-*.youtubei.googleapis.com
-*.youtube.googleapis.com
-youtu.be
+###########################
 
+# youtube.com
+# *.youtube.com
+# youtube-nocookie.com
+# *.youtube-nocookie.com
+# youtubei.googleapis.com
+# youtube.googleapis.com
+# youtu.be
+
+###########################
+# Reddit
+###########################
+
+reddit.com @not-social-networks
+*.reddit.com @not-social-networks
+
+###########################
+# X / Twitter
+###########################
+
+x.com @not-social-networks
+*.x.com @not-social-networks
+twitter.com @not-social-networks
+*.twitter.com @not-social-networks
+
+###########################
 # Time-based rules
+###########################
+
 *.* @go-home
