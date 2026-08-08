@@ -8,6 +8,7 @@
     ./tools
     ./gui/zellij/zellij.nix
     ./gui/catppuccin.nix
+
   ];
 
   home.username = "tiendat";
