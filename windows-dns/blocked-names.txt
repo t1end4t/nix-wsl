@@ -71,13 +71,13 @@ doh.dns.apple.com
 # YouTube
 ###########################
 
-# youtube.com
-# *.youtube.com
-# youtube-nocookie.com
-# *.youtube-nocookie.com
-# youtubei.googleapis.com
-# youtube.googleapis.com
-# youtu.be
+youtube.com
+*.youtube.com
+youtube-nocookie.com
+*.youtube-nocookie.com
+youtubei.googleapis.com
+youtube.googleapis.com
+youtu.be
 
 ###########################
 # Reddit
