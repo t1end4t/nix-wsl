@@ -11,8 +11,7 @@ require_dnssec = true
 
 server_names = ['cloudflare']
 
-## Uncomment to log all queries for debugging
-# log_file = 'C:\Program Files\dnscrypt-proxy\dnscrypt-proxy.log'
+log_file = 'C:\Program Files\dnscrypt-proxy\dnscrypt-proxy.log'
 
 cloaking_rules = 'C:\Program Files\dnscrypt-proxy\cloaking-rules.txt'
 
@@ -31,7 +30,7 @@ minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
 ########## Filtering ##########
 
 [blocked_names]
-blocked_names_file = 'C:\Program Files\dnscrypt-proxy\blocked-names.txt'
+blocked_names_file = 'C:\Program Files\dnscrypt-proxy\blocked-names.generated.txt'
 
 [allowed_names]
 allowed_names_file = 'C:\Program Files\dnscrypt-proxy\allowed-names.txt'

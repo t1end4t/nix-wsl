@@ -1,14 +1,15 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Restores the previous Windows hosts file backup.
+    Restores the Windows hosts file after migrating to dnscrypt-proxy filtering.
 
 .DESCRIPTION
-    Restores C:\Windows\System32\drivers\etc\hosts from hosts.bak.
+    Restores C:\Windows\System32\drivers\etc\hosts from hosts.bak. Run this
+    once after replacing the old hosts blocklist with dnscrypt-proxy filtering.
 
 .NOTES
     Run from an elevated PowerShell prompt.
-    This script expects update-hosts.ps1 to have created hosts.bak.
+    This script expects an earlier hosts blocklist install to have created hosts.bak.
 #>
 
 $HOSTS_DST = "$env:SystemRoot\System32\drivers\etc\hosts"

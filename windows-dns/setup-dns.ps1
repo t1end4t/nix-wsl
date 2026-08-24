@@ -16,7 +16,6 @@
       5. Registered as a Windows service
       6. Started successfully
       7. Verified to answer DNS queries locally
-      8. Verified that the hosts/blocklist update succeeds
 
     Only after all of the above succeeds are active adapters switched
     to the local dnscrypt-proxy resolver.
@@ -33,8 +32,6 @@
     dnscrypt-proxy should be configured to listen on 127.0.0.1:53.
     IPv6 (::1) is only used if the configuration actually contains
     an IPv6 listener.
-
-    After installation, update-hosts.ps1 can still be run manually.
 #>
 
 Set-StrictMode -Version Latest
@@ -55,7 +52,7 @@ $EXTRACT_DIR = Join-Path $TEMP_ROOT "extract"
 
 $CONFIG_FILES = @(
     'dnscrypt-proxy.toml',
-    'blocked-names.txt',
+    'blocked-names.generated.txt',
     'allowed-names.txt',
     'cloaking-rules.txt'
 )
@@ -136,14 +133,16 @@ function Test-DnsServer {
 
 function Test-InternetConnectivity {
     try {
-        # This deliberately uses an IP address rather than DNS.
-        # It verifies that the network itself is reachable without
-        # depending on the DNS configuration we are about to change.
-        Test-NetConnection `
-            -ComputerName "1.1.1.1" `
-            -Port 443 `
-            -InformationLevel Quiet `
-            -WarningAction SilentlyContinue
+        # Use the same DNS, proxy, and HTTPS path that the download needs.
+        # Direct TCP probes to a public IP can be blocked even when normal
+        # Internet access is working.
+        Invoke-WebRequest `
+            -Uri "https://github.com" `
+            -Method Head `
+            -UseBasicParsing `
+            -TimeoutSec 15 | Out-Null
+
+        return $true
     }
     catch {
         return $false
@@ -302,6 +301,14 @@ Write-OK "Archive extracted."
 
 Write-Step "[4/7] Installing files and configuration"
 
+$blocklistBuilder = Join-Path $SCRIPT_DIR 'build-blocklist.ps1'
+
+if (-not (Test-Path $blocklistBuilder)) {
+    throw "build-blocklist.ps1 was not found at $blocklistBuilder."
+}
+
+& $blocklistBuilder
+
 New-Item `
     -ItemType Directory `
     -Force `
@@ -332,6 +339,7 @@ foreach ($file in $CONFIG_FILES) {
 
 $installedBinary = Join-Path $INSTALL_DIR "dnscrypt-proxy.exe"
 $configPath      = Join-Path $INSTALL_DIR "dnscrypt-proxy.toml"
+$logPath         = Join-Path $INSTALL_DIR "dnscrypt-proxy.log"
 
 if (-not (Test-Path $installedBinary)) {
     throw "Installed dnscrypt-proxy.exe was not found."
@@ -403,40 +411,75 @@ $existingService = Get-Service `
 Push-Location $INSTALL_DIR
 
 try {
-    if (-not $existingService) {
-        Write-Host "  Installing service..."
+    if ($existingService) {
+        Write-Host "  Reinstalling existing service registration..."
+
+        if ($existingService.Status -ne 'Stopped') {
+            Stop-Service `
+                -Name $SERVICE_NAME `
+                -Force `
+                -ErrorAction Stop
+
+            $existingService.WaitForStatus(
+                [System.ServiceProcess.ServiceControllerStatus]::Stopped,
+                [TimeSpan]::FromSeconds(15)
+            )
+        }
 
         Invoke-NativeChecked `
             -FilePath ".\dnscrypt-proxy.exe" `
-            -Arguments @("-service", "install")
+            -Arguments @("-service", "uninstall")
+    }
 
-        Write-OK "Service installed."
-    }
-    else {
-        Write-Host "  Service already exists."
-    }
+    Write-Host "  Installing service..."
+
+    Invoke-NativeChecked `
+        -FilePath ".\dnscrypt-proxy.exe" `
+        -Arguments @("-service", "install")
+
+    Write-OK "Service installed."
 
     Write-Host "  Starting service..."
 
-    try {
-        Start-Service `
-            -Name $SERVICE_NAME `
-            -ErrorAction Stop
+    if (Test-Path $logPath) {
+        Remove-Item $logPath -Force
     }
-    catch {
-        # It may already be running.
-        $service = Get-Service `
-            -Name $SERVICE_NAME `
-            -ErrorAction Stop
 
-        if ($service.Status -ne 'Running') {
-            throw
-        }
-    }
+    Invoke-NativeChecked `
+        -FilePath ".\dnscrypt-proxy.exe" `
+        -Arguments @("-service", "start")
 
     $service = Get-Service `
         -Name $SERVICE_NAME `
         -ErrorAction Stop
+
+    try {
+        $service.WaitForStatus(
+            [System.ServiceProcess.ServiceControllerStatus]::Running,
+            [TimeSpan]::FromSeconds(15)
+        )
+    }
+    catch {
+        $service.Refresh()
+
+        $log = if (Test-Path $logPath) {
+            (Get-Content $logPath -Tail 50) -join [Environment]::NewLine
+        }
+        else {
+            "No dnscrypt-proxy log was created."
+        }
+
+        throw @"
+dnscrypt-proxy exited before reaching the Running state.
+
+Service status: $($service.Status)
+Log file: $logPath
+
+$log
+"@
+    }
+
+    $service.Refresh()
 
     if ($service.Status -ne 'Running') {
         throw "dnscrypt-proxy service did not reach the Running state."
@@ -458,16 +501,33 @@ Write-Host "  Testing local dnscrypt-proxy DNS..."
 $ipv4DnsOK = Test-DnsServer -Server "127.0.0.1"
 
 if (-not $ipv4DnsOK) {
+    $service = Get-Service `
+        -Name $SERVICE_NAME `
+        -ErrorAction SilentlyContinue
+
+    $serviceStatus = if ($service) {
+        $service.Status
+    }
+    else {
+        'NotFound'
+    }
+
+    $log = if (Test-Path $logPath) {
+        (Get-Content $logPath -Tail 50) -join [Environment]::NewLine
+    }
+    else {
+        "No dnscrypt-proxy log was created."
+    }
+
     throw @"
-dnscrypt-proxy is running, but DNS queries through 127.0.0.1 failed.
+dnscrypt-proxy did not answer DNS queries through 127.0.0.1.
 
 Windows DNS has NOT been changed.
 
-Check:
+Service status: $serviceStatus
+Log file: $logPath
 
-    $configPath
-
-and the dnscrypt-proxy service/logs.
+$log
 "@
 }
 
@@ -487,44 +547,6 @@ if ($useIPv6) {
         # Do NOT switch Windows IPv6 DNS to ::1 if it isn't working.
         $useIPv6 = $false
     }
-}
-
-# ---------------------------------------------------------------------------
-# Run hosts update BEFORE DNS cutover
-#
-# This is intentionally done while the original system DNS is still active.
-# ---------------------------------------------------------------------------
-
-Write-Host ""
-Write-Host "  Applying hosts blocklist before DNS cutover..."
-
-$updateHosts = Join-Path $SCRIPT_DIR "update-hosts.ps1"
-
-if (Test-Path $updateHosts) {
-    try {
-        & $updateHosts
-
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            throw "update-hosts.ps1 returned exit code $LASTEXITCODE."
-        }
-
-        Write-OK "Hosts blocklist update completed."
-    }
-    catch {
-        throw @"
-update-hosts.ps1 failed.
-
-Windows DNS has NOT been changed.
-
-The system has therefore been left using its original DNS configuration.
-
-Original error:
-$($_.Exception.Message)
-"@
-    }
-}
-else {
-    Write-Warn "update-hosts.ps1 not found -- skipping."
 }
 
 # ---------------------------------------------------------------------------
