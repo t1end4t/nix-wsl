@@ -107,7 +107,7 @@ function Test-DnsServer {
         [Parameter(Mandatory)]
         [string]$Server,
 
-        [int]$Attempts = 3
+        [int]$Attempts = 15
     )
 
     for ($i = 1; $i -le $Attempts; $i++) {
@@ -124,6 +124,10 @@ function Test-DnsServer {
             }
         }
         catch {
+            Write-Verbose "DNS probe $i/$Attempts through ${Server}: $($_.Exception.Message)"
+            if ($i -eq $Attempts) {
+                Write-Warn "DNS query through $Server failed: $($_.Exception.Message)"
+            }
             Start-Sleep -Seconds 1
         }
     }
@@ -207,6 +211,34 @@ function Restore-DnsConfiguration {
 # ---------------------------------------------------------------------------
 
 Write-Step "[0/7] Checking current network"
+
+# Check dependencies before downloads, service changes, or DNS probes. Missing
+# cmdlets must not be mistaken for a resolver that failed to start.
+$requiredCommands = @(
+    'Resolve-DnsName',
+    'Get-NetAdapter',
+    'Get-DnsClientServerAddress',
+    'Set-DnsClientServerAddress'
+)
+$missingCommands = @(
+    foreach ($command in $requiredCommands) {
+        if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+            $command
+        }
+    }
+)
+if ($missingCommands.Count -gt 0) {
+    throw @"
+Required Windows networking cmdlets are unavailable: $($missingCommands -join ', ').
+
+This installer requires the Windows DnsClient and NetAdapter PowerShell modules.
+Restore the missing Windows PowerShell components/modules, then run this script
+again from an elevated PowerShell session. Installing PowerShell 7 alone does
+not supply these Windows modules.
+
+No service or Windows DNS settings have been changed by this run.
+"@
+}
 
 if (-not (Test-InternetConnectivity)) {
     throw @"
