@@ -1,0 +1,3 @@
+# Local installers, binaries, licenses, and historical logs.
+/archives/*.zip
+/payload/
