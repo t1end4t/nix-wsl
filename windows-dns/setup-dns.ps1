@@ -57,6 +57,9 @@ $CONFIG_FILES = @(
     'cloaking-rules.txt'
 )
 
+. (Join-Path $SCRIPT_DIR 'dns-network.ps1')
+. (Join-Path $SCRIPT_DIR 'dns-download.ps1')
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -112,12 +115,7 @@ function Test-DnsServer {
 
     for ($i = 1; $i -le $Attempts; $i++) {
         try {
-            $result = Resolve-DnsName `
-                -Name "example.com" `
-                -Type A `
-                -Server $Server `
-                -DnsOnly `
-                -ErrorAction Stop
+            $result = Test-DnsSetupQuery -Server $Server
 
             if ($result) {
                 return $true
@@ -153,57 +151,36 @@ function Test-InternetConnectivity {
     }
 }
 
-function Get-ConfiguredDnsAddresses {
-    param(
-        [Parameter(Mandatory)]
-        [int]$InterfaceIndex
-    )
-
-    $entry = Get-DnsClientServerAddress `
-        -InterfaceIndex $InterfaceIndex `
-        -ErrorAction Stop
-
-    return [PSCustomObject]@{
-        InterfaceIndex = $InterfaceIndex
-        ServerAddresses = @(
-            $entry |
-                Select-Object -ExpandProperty ServerAddresses
-        )
-    }
-}
-
 function Restore-DnsConfiguration {
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [array]$DnsBackup
     )
 
     Write-Host ""
     Write-Host "Restoring previous DNS configuration..." -ForegroundColor Yellow
 
+    $restored = $true
     foreach ($entry in $DnsBackup) {
         try {
-            if ($entry.ServerAddresses.Count -gt 0) {
-                Set-DnsClientServerAddress `
-                    -InterfaceIndex $entry.InterfaceIndex `
-                    -ServerAddresses $entry.ServerAddresses `
-                    -ErrorAction Stop
-            }
-            else {
-                Set-DnsClientServerAddress `
-                    -InterfaceIndex $entry.InterfaceIndex `
-                    -ResetServerAddresses `
-                    -ErrorAction Stop
-            }
-
-            Write-OK "Restored interface $($entry.InterfaceIndex)"
+            Set-DnsSetupAddresses -InterfaceIndex $entry.InterfaceIndex `
+                -Family $entry.Family -ServerAddresses $entry.StaticServerAddresses
+            Write-OK "Restored $($entry.Family) DNS on interface $($entry.InterfaceIndex)"
         }
         catch {
-            Write-Warn "Could not restore interface $($entry.InterfaceIndex): $($_.Exception.Message)"
+            $restored = $false
+            Write-Warn "Could not restore $($entry.Family) DNS on interface $($entry.InterfaceIndex): $($_.Exception.Message)"
         }
     }
 
-    ipconfig /flushdns | Out-Null
+    try {
+        Invoke-NativeChecked -FilePath 'ipconfig.exe' -Arguments @('/flushdns') | Out-Null
+    }
+    catch {
+        Write-Warn "Could not flush the DNS cache after rollback: $($_.Exception.Message)"
+    }
+    return $restored
 }
 
 # ---------------------------------------------------------------------------
@@ -212,32 +189,18 @@ function Restore-DnsConfiguration {
 
 Write-Step "[0/7] Checking current network"
 
-# Check dependencies before downloads, service changes, or DNS probes. Missing
-# cmdlets must not be mistaken for a resolver that failed to start.
-$requiredCommands = @(
-    'Resolve-DnsName',
-    'Get-NetAdapter',
-    'Get-DnsClientServerAddress',
-    'Set-DnsClientServerAddress'
-)
-$missingCommands = @(
-    foreach ($command in $requiredCommands) {
-        if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
-            $command
-        }
+# Check the selected backend before downloads or service changes. Stripped
+# Windows can use CIM/.NET/netsh without restoring the missing PowerShell modules.
+Initialize-DnsNetworking
+$adapters = @(Get-DnsSetupAdapters)
+if ($adapters.Count -eq 0) {
+    throw 'No active hardware network adapters were found. No settings have been changed.'
+}
+foreach ($adapter in $adapters) {
+    $configuration = @(Get-DnsSetupConfiguration -Adapter $adapter)
+    if (-not ($configuration | Where-Object Family -eq 'ipv4')) {
+        throw "No IPv4 configuration found on $($adapter.Name). No settings have been changed."
     }
-)
-if ($missingCommands.Count -gt 0) {
-    throw @"
-Required Windows networking cmdlets are unavailable: $($missingCommands -join ', ').
-
-This installer requires the Windows DnsClient and NetAdapter PowerShell modules.
-Restore the missing Windows PowerShell components/modules, then run this script
-again from an elevated PowerShell session. Installing PowerShell 7 alone does
-not supply these Windows modules.
-
-No service or Windows DNS settings have been changed by this run.
-"@
 }
 
 if (-not (Test-InternetConnectivity)) {
@@ -272,24 +235,13 @@ New-Item -ItemType Directory -Path $EXTRACT_DIR -Force | Out-Null
 
 Write-Step "[2/7] Fetching latest dnscrypt-proxy release"
 
-$release = Invoke-RestMethod `
-    "https://api.github.com/repos/DNSCrypt/dnscrypt-proxy/releases/latest"
+$asset = Get-DnscryptReleaseAsset
 
-$asset = $release.assets |
-    Where-Object {
-        $_.name -match '^dnscrypt-proxy.*win64.*\.zip$'
-    } |
-    Select-Object -First 1
-
-if (-not $asset) {
-    throw "Could not find a Windows x64 dnscrypt-proxy ZIP asset."
-}
-
-Write-Host "  Release: $($release.tag_name)"
-Write-Host "  Asset:   $($asset.name)"
+Write-Host "  Release: $($asset.TagName)"
+Write-Host "  Asset:   $($asset.Name)"
 
 Invoke-WebRequest `
-    -Uri $asset.browser_download_url `
+    -Uri $asset.DownloadUrl `
     -OutFile $ZIP_PATH
 
 if (-not (Test-Path $ZIP_PATH)) {
@@ -591,11 +543,7 @@ if ($useIPv6) {
 
 Write-Step "[6/7] FINAL STEP: preparing DNS cutover"
 
-$adapters = Get-NetAdapter |
-    Where-Object {
-        $_.Status -eq 'Up' -and
-        $_.HardwareInterface -eq $true
-    }
+$adapters = @(Get-DnsSetupAdapters)
 
 if (-not $adapters) {
     throw "No active hardware network adapters were found."
@@ -605,9 +553,16 @@ if (-not $adapters) {
 $dnsBackup = @()
 
 foreach ($adapter in $adapters) {
-    $dnsBackup += Get-ConfiguredDnsAddresses `
-        -InterfaceIndex $adapter.ifIndex
+    $configuration = @(Get-DnsSetupConfiguration -Adapter $adapter)
+    if (-not ($configuration | Where-Object Family -eq 'ipv4')) {
+        throw "No IPv4 configuration found on $($adapter.Name); Windows DNS has not been changed."
+    }
+    $dnsBackup += $configuration
 }
+
+# Record each family BEFORE writing, so even a partially failed netsh update
+# is rolled back. Unchanged IPv6 settings are not touched during rollback.
+$dnsChanges = [System.Collections.Generic.List[object]]::new()
 
 Write-Host ""
 Write-Host "The following adapters will be changed:"
@@ -637,33 +592,24 @@ try {
     foreach ($adapter in $adapters) {
         Write-Host "  Configuring $($adapter.Name)..."
 
-        $backup = $dnsBackup |
-            Where-Object { $_.InterfaceIndex -eq $adapter.ifIndex } |
-            Select-Object -First 1
-
-        $serverAddresses = @('127.0.0.1')
-
-        if ($useIPv6) {
-            $serverAddresses += '::1'
+        $backups = @($dnsBackup | Where-Object InterfaceIndex -eq $adapter.ifIndex)
+        foreach ($backup in $backups) {
+            if ($backup.Family -eq 'ipv6' -and -not $useIPv6) { continue }
+            $localAddress = if ($backup.Family -eq 'ipv4') { '127.0.0.1' } else { '::1' }
+            # Keep previous resolvers in their original IP family as fallbacks.
+            $serverAddresses = @($localAddress) + @(
+                $backup.ServerAddresses | Where-Object { $_ -notin @('127.0.0.1', '::1') }
+            )
+            $dnsChanges.Add($backup)
+            Set-DnsSetupAddresses -InterfaceIndex $adapter.ifIndex -Family $backup.Family `
+                -ServerAddresses @($serverAddresses | Select-Object -Unique)
         }
-
-        # Keep the existing resolvers as emergency fallbacks. This avoids
-        # losing DNS if the local service stops during or after installation.
-        $serverAddresses += @(
-            $backup.ServerAddresses |
-                Where-Object { $_ -notin @('127.0.0.1', '::1') }
-        )
-
-        Set-DnsClientServerAddress `
-            -InterfaceIndex $adapter.ifIndex `
-            -ServerAddresses ($serverAddresses | Select-Object -Unique) `
-            -ErrorAction Stop
 
         Write-OK "$($adapter.Name)"
     }
 
     # Flush Windows DNS cache after the change.
-    ipconfig /flushdns | Out-Null
+    Invoke-NativeChecked -FilePath 'ipconfig.exe' -Arguments @('/flushdns') | Out-Null
 
     Start-Sleep -Seconds 2
 
@@ -678,11 +624,7 @@ try {
 
     for ($attempt = 1; $attempt -le 5; $attempt++) {
         try {
-            $result = Resolve-DnsName `
-                -Name "example.com" `
-                -Type A `
-                -DnsOnly `
-                -ErrorAction Stop
+            $result = Test-DnsSetupQuery
 
             if ($result) {
                 $systemDnsOK = $true
@@ -721,11 +663,15 @@ catch {
     Write-Host "DNS cutover FAILED." -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
 
-    Restore-DnsConfiguration -DnsBackup $dnsBackup
+    $restored = Restore-DnsConfiguration -DnsBackup @($dnsChanges.ToArray())
 
     Write-Host ""
-    Write-Host "The original DNS configuration has been restored." `
-        -ForegroundColor Green
+    if ($restored) {
+        Write-Host "The original DNS configuration has been restored." -ForegroundColor Green
+    }
+    else {
+        throw 'Installation failed and DNS rollback was incomplete. dnscrypt-proxy was left running; review the rollback warnings above.'
+    }
 
     Write-Host ""
     Write-Host "dnscrypt-proxy itself was left installed/running."
